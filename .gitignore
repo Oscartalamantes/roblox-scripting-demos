@@ -1,0 +1,5 @@
+file_bridge_api_fixed.py
+auto_sync_git.py
+start_both.bat
+__pycache__/
+*.pyc
