@@ -11,3 +11,9 @@ Coin collection with a persistent DataStore backend: coins save on earn, on a ti
 ---
 More of my work: https://oscartalamantes.github.io/portfolio/
 Hiring: DevHub / HiddenDevs — DM me. 50% upfront, balance on delivery.
+
+## Leaderboard Demo (`leaderboard-demo.rbxlx`)
+OrderedDataStore-backed global leaderboard with a live in-game board: best times ranked and displayed, updates as new scores land.
+
+## Shop UI Demo (`shop-ui-demo.rbxlx`)
+In-game shop interface: item grid, currency display, buy flow with server-side validation — no client-trusted purchases.

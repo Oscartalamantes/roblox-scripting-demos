@@ -1,0 +1,732 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">ShopItems</string>
+          <string name="Source"><![CDATA[-- ============================================================================
+-- ShopItems (Shared): the shop catalog.
+-- Both server (purchase validation) and client (UI display) require this,
+-- so item data lives in exactly one place.
+-- ============================================================================
+
+export type ShopItem = {
+	id: string,
+	name: string,
+	icon: string, -- emoji, no external assets needed
+	price: number,
+	color: Color3, -- trail color when equipped
+}
+
+local ShopItems: { ShopItem } = {
+	{ id = "ember", name = "Ember Trail", icon = "🔥", price = 100, color = Color3.fromRGB(255, 110, 20) },
+	{ id = "frost", name = "Frost Trail", icon = "❄️", price = 250, color = Color3.fromRGB(90, 200, 255) },
+	{ id = "venom", name = "Venom Trail", icon = "☠️", price = 500, color = Color3.fromRGB(80, 220, 80) },
+	{ id = "royal", name = "Royal Trail", icon = "👑", price = 1000, color = Color3.fromRGB(170, 80, 255) },
+	{ id = "gold", name = "Gold Trail", icon = "⭐", price = 2500, color = Color3.fromRGB(255, 210, 60) },
+	{ id = "shadow", name = "Shadow Trail", icon = "🌑", price = 5000, color = Color3.fromRGB(45, 45, 60) },
+}
+
+local byId: { [string]: ShopItem } = {}
+for _, item in ipairs(ShopItems) do
+	byId[item.id] = item
+end
+
+-- Look up an item by id. Returns nil for unknown ids (server rejects those).
+local function getById(id: string): ShopItem?
+	return byId[id]
+end
+
+return {
+	list = ShopItems,
+	getById = getById,
+}
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="3">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="4">
+      <Properties>
+        <string name="Name">Main</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[-- ============================================================================
+-- ShopDemo (Server)
+-- Working shop backend: coin currency persisted in a DataStore, server-side
+-- purchase validation, and trail equipping on the player's character.
+--
+-- ARCHITECTURE
+--   ReplicatedStorage remotes (created here):
+--     ShopBuy   (RemoteEvent,  client -> server, itemId: string)
+--     ShopEquip (RemoteEvent,  client -> server, itemId: string; "" = unequip)
+--     ShopSync  (RemoteEvent,  server -> client, state table)
+--   Client never trusts its own copy of coins/ownership — the server is the
+--   single source of truth and pushes the full state after every change.
+--
+-- STUDIO NOTE: like the leaderboard demo, this works in Play Solo without
+-- API access via an in-memory fallback.
+-- ============================================================================
+
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local ShopItems = require(Shared:WaitForChild("ShopItems"))
+
+local STORE_NAME = "ShopDemo_v1"
+local STARTING_COINS = 250
+local COINS_PER_CLICK = 100
+local SAVE_THROTTLE_SECONDS = 20
+
+export type PlayerData = {
+	coins: number,
+	owned: { [string]: boolean },
+	equipped: string?, -- item id or nil
+}
+
+-- ----------------------------------------------------------------------------
+-- Persistence (DataStore with in-memory fallback)
+-- ----------------------------------------------------------------------------
+local store: DataStore? = nil
+local storeOk, storeErr = pcall(function()
+	store = DataStoreService:GetDataStore(STORE_NAME)
+end)
+if not storeOk then
+	warn("[ShopDemo] DataStore unavailable, using memory only: " .. tostring(storeErr))
+end
+
+local data: { [number]: PlayerData } = {} -- [userId] = PlayerData
+local lastSave: { [number]: number } = {}
+
+local function defaultData(): PlayerData
+	return { coins = STARTING_COINS, owned = {}, equipped = nil }
+end
+
+local function loadData(player: Player): PlayerData
+	local key = "p_" .. player.UserId
+	local loaded: PlayerData? = nil
+	if store then
+		pcall(function()
+			loaded = store:GetAsync(key)
+		end)
+	end
+	local d = loaded or defaultData()
+	-- Sanitize anything that came back from the store.
+	d.coins = math.max(0, math.floor(tonumber(d.coins) or STARTING_COINS))
+	d.owned = if typeof(d.owned) == "table" then d.owned else {}
+	if d.equipped ~= nil and not ShopItems.getById(d.equipped) then
+		d.equipped = nil
+	end
+	-- Drop owned flags for items that no longer exist in the catalog.
+	for id in pairs(d.owned) do
+		if not ShopItems.getById(id) then
+			d.owned[id] = nil
+		end
+	end
+	data[player.UserId] = d
+	return d
+end
+
+local function saveData(player: Player, force: boolean)
+	local d = data[player.UserId]
+	if not d or not store then
+		return
+	end
+	local now = os.clock()
+	if not force and (lastSave[player.UserId] or 0) + SAVE_THROTTLE_SECONDS > now then
+		return
+	end
+	lastSave[player.UserId] = now
+	pcall(function()
+		store:SetAsync("p_" .. player.UserId, d)
+	end)
+end
+
+-- ----------------------------------------------------------------------------
+-- Remotes
+-- ----------------------------------------------------------------------------
+local function getOrCreateRemote(name: string, className: string): RemoteEvent
+	local existing = ReplicatedStorage:FindFirstChild(name)
+	if existing then
+		return existing :: RemoteEvent
+	end
+	local r = Instance.new(className)
+	r.Name = name
+	r.Parent = ReplicatedStorage
+	return r :: RemoteEvent
+end
+
+local buyRemote = getOrCreateRemote("ShopBuy", "RemoteEvent")
+local equipRemote = getOrCreateRemote("ShopEquip", "RemoteEvent")
+local syncRemote = getOrCreateRemote("ShopSync", "RemoteEvent")
+
+-- Push the authoritative state to one client.
+local function sync(player: Player)
+	local d = data[player.UserId]
+	if d then
+		syncRemote:FireClient(player, {
+			coins = d.coins,
+			owned = d.owned,
+			equipped = d.equipped,
+		})
+	end
+end
+
+-- ----------------------------------------------------------------------------
+-- Trail equipping (cosmetic applied to the character)
+-- ----------------------------------------------------------------------------
+local function clearTrail(character: Model)
+	local old = character:FindFirstChild("ShopTrail")
+	if old then
+		old:Destroy()
+	end
+	for _, desc in ipairs(character:GetDescendants()) do
+		if desc:IsA("Attachment") and (desc.Name == "ShopA0" or desc.Name == "ShopA1") then
+			desc:Destroy()
+		end
+	end
+end
+
+local function applyTrail(player: Player)
+	local d = data[player.UserId]
+	local character = player.Character
+	if not d or not character then
+		return
+	end
+	clearTrail(character)
+	if not d.equipped then
+		return
+	end
+	local item = ShopItems.getById(d.equipped)
+	local head = character:FindFirstChild("Head")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not item or not head or not root then
+		return
+	end
+
+	local a0 = Instance.new("Attachment")
+	a0.Name = "ShopA0"
+	a0.Position = Vector3.new(0, 1, 0)
+	a0.Parent = head
+
+	local a1 = Instance.new("Attachment")
+	a1.Name = "ShopA1"
+	a1.Position = Vector3.new(0, 0, 0)
+	a1.Parent = root
+
+	local trail = Instance.new("Trail")
+	trail.Name = "ShopTrail"
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = ColorSequence.new(item.color)
+	trail.Transparency = NumberSequence.new(0.2)
+	trail.Lifetime = 0.6
+	trail.WidthScale = NumberSequence.new(1)
+	trail.FaceCamera = true
+	trail.Parent = head
+end
+
+-- ----------------------------------------------------------------------------
+-- Purchase / equip handlers (all validation happens here, never on client)
+-- ----------------------------------------------------------------------------
+buyRemote.OnServerEvent:Connect(function(player: Player, itemId: any)
+	if typeof(itemId) ~= "string" then
+		return
+	end
+	local item = ShopItems.getById(itemId)
+	local d = data[player.UserId]
+	if not item or not d then
+		return
+	end
+	if d.owned[itemId] then
+		return -- already owned, nothing to do
+	end
+	if d.coins < item.price then
+		return -- can't afford it
+	end
+	d.coins -= item.price
+	d.owned[itemId] = true
+	saveData(player, true)
+	sync(player)
+end)
+
+equipRemote.OnServerEvent:Connect(function(player: Player, itemId: any)
+	if typeof(itemId) ~= "string" then
+		return
+	end
+	local d = data[player.UserId]
+	if not d then
+		return
+	end
+	if itemId == "" then
+		d.equipped = nil -- unequip
+	else
+		local item = ShopItems.getById(itemId)
+		if not item or not d.owned[itemId] then
+			return -- can't equip what you don't own
+		end
+		d.equipped = itemId
+	end
+	applyTrail(player)
+	saveData(player, true)
+	sync(player)
+end)
+
+-- ----------------------------------------------------------------------------
+-- World building
+-- ----------------------------------------------------------------------------
+local function buildWorld()
+	local baseplate = Instance.new("Part")
+	baseplate.Name = "Baseplate"
+	baseplate.Size = Vector3.new(120, 2, 120)
+	baseplate.Position = Vector3.new(0, -1, 0)
+	baseplate.Anchored = true
+	baseplate.Color = Color3.fromRGB(32, 34, 46)
+	baseplate.Material = Enum.Material.SmoothPlastic
+	baseplate.Parent = workspace
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Size = Vector3.new(6, 1, 6)
+	spawn.Position = Vector3.new(0, 0.5, 12)
+	spawn.Anchored = true
+	spawn.BrickColor = BrickColor.new("Medium stone grey")
+	spawn.Material = Enum.Material.SmoothPlastic
+	spawn.Parent = workspace
+
+	-- Coin pad: click to earn coins for testing purchases
+	local pad = Instance.new("Part")
+	pad.Name = "CoinPad"
+	pad.Size = Vector3.new(8, 1, 8)
+	pad.Position = Vector3.new(12, 0.5, 12)
+	pad.Anchored = true
+	pad.Color = Color3.fromRGB(255, 195, 60)
+	pad.Material = Enum.Material.Neon
+	pad.Parent = workspace
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 340, 0, 60)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.Adornee = pad
+	billboard.Parent = pad
+
+	local padLabel = Instance.new("TextLabel")
+	padLabel.Size = UDim2.new(1, 0, 1, 0)
+	padLabel.BackgroundTransparency = 1
+	padLabel.Font = Enum.Font.GothamBlack
+	padLabel.TextSize = 30
+	padLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	padLabel.TextStrokeTransparency = 0.4
+	padLabel.Text = "CLICK  +100 COINS"
+	padLabel.Parent = billboard
+
+	local click = Instance.new("ClickDetector")
+	click.MaxActivationDistance = 20
+	click.Parent = pad
+
+	local debounce: { [number]: number } = {}
+	click.MouseClick:Connect(function(player)
+		local now = os.clock()
+		if (debounce[player.UserId] or 0) + 0.5 > now then
+			return
+		end
+		debounce[player.UserId] = now
+		local d = data[player.UserId]
+		if d then
+			d.coins += COINS_PER_CLICK
+			saveData(player, false)
+			sync(player)
+		end
+	end)
+end
+
+-- ----------------------------------------------------------------------------
+-- Player lifecycle
+-- ----------------------------------------------------------------------------
+Players.PlayerAdded:Connect(function(player)
+	loadData(player)
+	player.CharacterAdded:Connect(function()
+		task.delay(0.5, function()
+			applyTrail(player)
+		end)
+	end)
+	task.delay(1, function()
+		sync(player)
+	end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	saveData(player, true)
+	data[player.UserId] = nil
+	lastSave[player.UserId] = nil
+end)
+
+game:BindToClose(function()
+	for _, player in ipairs(Players:GetPlayers()) do
+		saveData(player, true)
+	end
+end)
+
+buildWorld()
+print("[ShopDemo] Ready — click the gold pad for coins, then open the shop.")
+]]></string>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="5">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="6">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="7">
+        <Properties>
+          <string name="Name">Shop</string>
+          <string name="Source"><![CDATA[-- ============================================================================
+-- ShopDemo (Client): builds the entire shop UI in code and talks to the
+-- server over RemoteEvents. The server owns coins/ownership; this script
+-- only displays the state it receives and forwards button presses.
+-- ============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local ShopItems = require(Shared:WaitForChild("ShopItems"))
+
+local buyRemote = ReplicatedStorage:WaitForChild("ShopBuy")
+local equipRemote = ReplicatedStorage:WaitForChild("ShopEquip")
+local syncRemote = ReplicatedStorage:WaitForChild("ShopSync")
+
+-- Latest authoritative state from the server. Nil until the first sync.
+local state: { coins: number, owned: { [string]: boolean }, equipped: string? }? = nil
+
+local function formatNumber(n: number): string
+	n = math.floor(n)
+	local s = tostring(n)
+	local out = ""
+	while #s > 3 do
+		out = "," .. string.sub(s, -3) .. out
+		s = string.sub(s, 1, -4)
+	end
+	return s .. out
+end
+
+-- ----------------------------------------------------------------------------
+-- UI construction
+-- ----------------------------------------------------------------------------
+local gui = Instance.new("ScreenGui")
+gui.Name = "ShopGui"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+
+-- Toggle button (always visible, bottom-right)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ShopToggle"
+toggleBtn.Size = UDim2.new(0, 150, 0, 56)
+toggleBtn.Position = UDim2.new(1, -170, 1, -76)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 195, 60)
+toggleBtn.Font = Enum.Font.GothamBlack
+toggleBtn.TextSize = 24
+toggleBtn.TextColor3 = Color3.fromRGB(40, 28, 8)
+toggleBtn.Text = "🛒 SHOP"
+toggleBtn.AutoButtonColor = true
+toggleBtn.Parent = gui
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 14)
+
+-- Dim backdrop behind the shop panel
+local backdrop = Instance.new("TextButton")
+backdrop.Name = "Backdrop"
+backdrop.Size = UDim2.new(1, 0, 1, 0)
+backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+backdrop.BackgroundTransparency = 0.45
+backdrop.Text = ""
+backdrop.Visible = false
+backdrop.Parent = gui
+
+-- Main panel (CanvasGroup so open/close can fade as one unit)
+local panel = Instance.new("CanvasGroup")
+panel.Name = "ShopPanel"
+panel.Size = UDim2.new(0, 580, 0, 470)
+panel.Position = UDim2.new(0.5, -290, 0.5, -235)
+panel.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+panel.GroupTransparency = 1
+panel.Visible = false
+panel.Parent = gui
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 16)
+
+local panelScale = Instance.new("UIScale")
+panelScale.Scale = 0.92
+panelScale.Parent = panel
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(255, 195, 60)
+stroke.Thickness = 2
+stroke.Transparency = 0.35
+stroke.Parent = panel
+
+-- Header
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 64)
+header.BackgroundTransparency = 1
+header.Parent = panel
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -120, 1, 0)
+titleLabel.Position = UDim2.new(0, 20, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Font = Enum.Font.GothamBlack
+titleLabel.TextSize = 28
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Text = "🛒  ITEM SHOP"
+titleLabel.Parent = header
+
+local coinsLabel = Instance.new("TextLabel")
+coinsLabel.Name = "CoinsLabel"
+coinsLabel.Size = UDim2.new(0, 200, 1, 0)
+coinsLabel.Position = UDim2.new(1, -280, 0, 0)
+coinsLabel.BackgroundTransparency = 1
+coinsLabel.Font = Enum.Font.GothamBold
+coinsLabel.TextSize = 24
+coinsLabel.TextXAlignment = Enum.TextXAlignment.Right
+coinsLabel.TextColor3 = Color3.fromRGB(255, 205, 90)
+coinsLabel.Text = "💰 ..."
+coinsLabel.Parent = header
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 44, 0, 44)
+closeBtn.Position = UDim2.new(1, -56, 0, 10)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+closeBtn.Font = Enum.Font.GothamBlack
+closeBtn.TextSize = 22
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Text = "✕"
+closeBtn.Parent = header
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 10)
+
+-- Status line (purchase feedback: "Purchased Ember Trail!")
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -40, 0, 28)
+statusLabel.Position = UDim2.new(0, 20, 0, 64)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextSize = 18
+statusLabel.TextColor3 = Color3.fromRGB(120, 230, 140)
+statusLabel.Text = ""
+statusLabel.Parent = panel
+
+-- Item grid
+local scroller = Instance.new("ScrollingFrame")
+scroller.Size = UDim2.new(1, -40, 1, -120)
+scroller.Position = UDim2.new(0, 20, 0, 96)
+scroller.BackgroundTransparency = 1
+scroller.BorderSizePixel = 0
+scroller.ScrollBarThickness = 6
+scroller.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroller.Parent = panel
+
+local grid = Instance.new("UIGridLayout")
+grid.CellSize = UDim2.new(0, 164, 0, 196)
+grid.CellPadding = UDim2.new(0, 12, 0, 12)
+grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+grid.Parent = scroller
+
+-- One card per catalog item; refreshed from server state.
+type Card = {
+	frame: Frame,
+	priceLabel: TextLabel,
+	actionBtn: TextButton,
+	itemId: string,
+}
+local cards: { Card } = {}
+
+local function setStatus(text: string, color: Color3)
+	statusLabel.Text = text
+	statusLabel.TextColor3 = color
+	task.delay(2.5, function()
+		if statusLabel.Text == text then
+			statusLabel.Text = ""
+		end
+	end)
+end
+
+local function buildCards()
+	for _, item in ipairs(ShopItems.list) do
+		local card = Instance.new("Frame")
+		card.Size = UDim2.new(0, 164, 0, 196)
+		card.BackgroundColor3 = Color3.fromRGB(36, 36, 50)
+		card.Parent = scroller
+		Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
+
+		local icon = Instance.new("TextLabel")
+		icon.Size = UDim2.new(1, 0, 0, 84)
+		icon.Position = UDim2.new(0, 0, 0, 8)
+		icon.BackgroundTransparency = 1
+		icon.Font = Enum.Font.GothamBlack
+		icon.TextSize = 64
+		icon.Text = item.icon
+		icon.Parent = card
+
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Size = UDim2.new(1, -16, 0, 28)
+		nameLabel.Position = UDim2.new(0, 8, 0, 94)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Font = Enum.Font.GothamBold
+		nameLabel.TextSize = 18
+		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nameLabel.Text = item.name
+		nameLabel.Parent = card
+
+		local priceLabel = Instance.new("TextLabel")
+		priceLabel.Size = UDim2.new(1, -16, 0, 24)
+		priceLabel.Position = UDim2.new(0, 8, 0, 122)
+		priceLabel.BackgroundTransparency = 1
+		priceLabel.Font = Enum.Font.Gotham
+		priceLabel.TextSize = 17
+		priceLabel.TextColor3 = Color3.fromRGB(255, 205, 90)
+		priceLabel.Text = ""
+		priceLabel.Parent = card
+
+		local actionBtn = Instance.new("TextButton")
+		actionBtn.Size = UDim2.new(1, -24, 0, 36)
+		actionBtn.Position = UDim2.new(0, 12, 1, -44)
+		actionBtn.Font = Enum.Font.GothamBold
+		actionBtn.TextSize = 17
+		actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		actionBtn.Text = "..."
+		actionBtn.Parent = card
+		Instance.new("UICorner", actionBtn).CornerRadius = UDim.new(0, 8)
+
+		local cardData: Card = { frame = card, priceLabel = priceLabel, actionBtn = actionBtn, itemId = item.id }
+
+		actionBtn.MouseButton1Click:Connect(function()
+			if not state then
+				return
+			end
+			if state.owned[item.id] then
+				if state.equipped == item.id then
+					equipRemote:FireServer("") -- unequip
+				else
+					equipRemote:FireServer(item.id)
+				end
+			else
+				if state.coins >= item.price then
+					buyRemote:FireServer(item.id)
+					setStatus("Purchased " .. item.name .. "!", Color3.fromRGB(120, 230, 140))
+				else
+					setStatus("Not enough coins!", Color3.fromRGB(255, 120, 120))
+				end
+			end
+		end)
+
+		table.insert(cards, cardData)
+	end
+end
+
+-- Repaint every card from the latest server state.
+local function refresh()
+	if not state then
+		return
+	end
+	coinsLabel.Text = "💰 " .. formatNumber(state.coins)
+	for i, card in ipairs(cards) do
+		local item = ShopItems.list[i]
+		local btn = card.actionBtn
+		if state.owned[item.id] then
+			card.priceLabel.Text = "OWNED"
+			card.priceLabel.TextColor3 = Color3.fromRGB(120, 230, 140)
+			if state.equipped == item.id then
+				btn.Text = "EQUIPPED ✓"
+				btn.BackgroundColor3 = Color3.fromRGB(90, 140, 90)
+			else
+				btn.Text = "EQUIP"
+				btn.BackgroundColor3 = Color3.fromRGB(70, 120, 200)
+			end
+		else
+			card.priceLabel.Text = "💰 " .. formatNumber(item.price)
+			card.priceLabel.TextColor3 = Color3.fromRGB(255, 205, 90)
+			if state.coins >= item.price then
+				btn.Text = "BUY"
+				btn.BackgroundColor3 = Color3.fromRGB(60, 170, 80)
+			else
+				btn.Text = "BUY"
+				btn.BackgroundColor3 = Color3.fromRGB(110, 110, 125)
+			end
+		end
+	end
+end
+
+-- ----------------------------------------------------------------------------
+-- Open / close with tween animation
+-- ----------------------------------------------------------------------------
+local isOpen = false
+local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function setOpen(open: boolean)
+	if open == isOpen then
+		return
+	end
+	isOpen = open
+	backdrop.Visible = open
+	if open then
+		panel.Visible = true
+		refresh()
+		TweenService:Create(panel, tweenInfo, { GroupTransparency = 0 }):Play()
+		TweenService:Create(panelScale, tweenInfo, { Scale = 1 }):Play()
+	else
+		local t1 = TweenService:Create(panel, tweenInfo, { GroupTransparency = 1 })
+		TweenService:Create(panelScale, tweenInfo, { Scale = 0.92 }):Play()
+		t1:Play()
+		t1.Completed:Connect(function()
+			if not isOpen then
+				panel.Visible = false
+			end
+		end)
+	end
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+	setOpen(not isOpen)
+end)
+closeBtn.MouseButton1Click:Connect(function()
+	setOpen(false)
+end)
+backdrop.MouseButton1Click:Connect(function()
+	setOpen(false)
+end)
+
+-- ----------------------------------------------------------------------------
+-- Server sync
+-- ----------------------------------------------------------------------------
+syncRemote.OnClientEvent:Connect(function(newState)
+	state = newState
+	refresh()
+end)
+
+buildCards()
+print("[ShopDemo] Client ready — press 🛒 SHOP to open the store.")
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>
