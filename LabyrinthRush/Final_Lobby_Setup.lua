@@ -33,4 +33,3 @@ for _,name in ipairs({"FireplaceFire","BrazierFire","CandleFlame","StartPad"}) d
 end
 
 print("Final Lobby lighting applied - should match concept art now")
-
