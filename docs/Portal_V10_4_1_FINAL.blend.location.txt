@@ -1,0 +1,15 @@
+PORTAL V10.4.1_FINAL - BLENDER SOURCE LOCATION
+==============================================
+
+Local path  : C:\Users\Etern\Desktop\Portal_V10_4_1_FINAL.blend
+Size        : 1079145 bytes (1.03 MB)
+Roblox asset: 123021752328888
+Replaces    : 110650213478858
+Tris        : 6450 (9 meshes)
+Arch check  : PortalCoreArch 0.61 world-Z on 1.26 diameter (thin disc)
+
+FULL MODEL SAVE (.rbxm) - MANUAL STEP REQUIRED
+The .rbxm export keeps Beams/Attachments/Prompts/Scripts/Sounds that the
+Open Cloud Model upload strips. It cannot be produced by any MCP command.
+In Studio: right-click Workspace.Lobby.PortalGateV10_FINAL -> Save to File
+  -> C:\Users\Etern\Documents\roblox-scripting-demos\docs\Portal_V10_4_1_FULL.rbxm

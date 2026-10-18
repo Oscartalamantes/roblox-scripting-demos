@@ -19,7 +19,8 @@
     "vfx_sparkle": 132615638177647,
     "vfx_swirl": 132243950328744,
     "portal_hum": 7028127341,
-    "v10_4": 110650213478858
+    "v10_4": 110650213478858,
+    "v10_4_1": 123021752328888
   },
   "bad_audio_ids": {
     "12222058": "Kid saying Ouch.wav - NOT a hum",
@@ -61,7 +62,9 @@
     "Fade relied solely on LOBBY_COUNTDOWN with no fallback - added 3.5s safety timer",
     "MCP power unlock does not exist as named servers - but do not fabricate bridges to look compliant. Use Blender Python for files, the memory ModuleScript for memory, and state plainly what is not available.",
     "V10.3 shipped a MeshPart (PortalEnergyDisc) created via Instance.new with an EMPTY MeshId -> renders as the magenta checkerboard placeholder. Always verify MeshPart.MeshId ~= \"\" after creating one programmatically, or use a plain Part.",
-    "An uploaded Model asset contains FBX GEOMETRY ONLY. Beams, Attachments, ProximityPrompts, Sounds, PointLights, SurfaceAppearances and Scripts do NOT survive the upload and must be re-applied in Studio after insert_asset."
+    "An uploaded Model asset contains FBX GEOMETRY ONLY. Beams, Attachments, ProximityPrompts, Sounds, PointLights, SurfaceAppearances and Scripts do NOT survive the upload and must be re-applied in Studio after insert_asset.",
+    "Do not assume a live-instance bug came from the asset. PortalCoreArch looked wrong in Studio but the Blender source was correct all along (thin on Y). The misorientation was self-inflicted by an Instance.new rebuild with the wrong Roblox Cylinder axis order. Measure the source BEFORE re-exporting.",
+    "Roblox Cylinder: local X is the axis between the two flat faces. Size (thickness, diameter, diameter) with a 90 deg Y rotation gives a disc facing Z. Getting this order wrong yields a 6-stud-thick band instead of a thin disc."
   ],
   "hook_status": "DISABLED - do not re-enable blender_addon_labyrinth_bridge auto_export",
   "bridges": {
@@ -90,12 +93,12 @@
     "note": "The missing servers cannot be conjured by writing files. What exists is Blender Python + PowerShell on the local machine, which is already how every file in this session was written."
   },
   "gold_master": {
-    "version": "v10.4_final",
-    "asset_id": 110650213478858,
-    "replaces": 78508116651933,
-    "reason": "V10.3 asset 78508116651933 contains a MeshPart PortalEnergyDisc with an EMPTY MeshId, which renders as the magenta checkerboard placeholder. V10.4 replaces it with an arch core built from a block + cylinder.",
-    "verified_in_play": true,
-    "entry_mechanic": "Z=5086 -> (790,-211), fade clear until 3.0s, purple by 3.8s, hum 7028127341",
-    "tris": 6450
+    "version": "v10.4.1_final",
+    "asset_id": 123021752328888,
+    "replaces": 110650213478858,
+    "reason": "PortalCoreArch was misoriented in the LIVE INSTANCE (6.11 world-Z thick horizontal band). The Blender source was already correct (X=1.262 Y=0.090 Z=1.262 -> thin on Roblox Z). The bug was introduced by an Instance.new rebuild in Studio, not by the asset. V10.4.1 re-exports from the verified source; arch measured 0.61 world-Z on a 1.26 diameter inside the inserted asset.",
+    "verified_arch_worldZ": 0.61,
+    "tris": 6450,
+    "entry_verified": "Z=5086 -> (790,-210); fade 1.00 until 3.0s, 0.82 at 3.4s, 0.00 by 3.8s, teleport ~5.0s while faded"
   }
 }
