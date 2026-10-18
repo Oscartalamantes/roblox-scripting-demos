@@ -1,0 +1,8 @@
+PORTAL V10.4_FINAL - BLENDER SOURCE LOCATION
+==============================================
+
+Local path : C:\Users\Etern\Desktop\Portal_V10_4_FINAL.blend
+Size       : 1077309 bytes (1.03 MB)
+Roblox asset: 110650213478858
+Replaces    : 78508116651933 (V10.3, magenta MeshId bug)
+Tris        : 6450 (9 meshes incl. PortalCoreLower + PortalCoreArch)
