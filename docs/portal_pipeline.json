@@ -1,0 +1,89 @@
+{
+  "pipeline": "portal_pipeline_v10_3",
+  "blender_version": "5.2.2 LTS",
+  "created": "2026-10-17T17:43:12",
+  "asset_ids": {
+    "v9": 140476554674370,
+    "v10_1": 78508116651933,
+    "v10_3_lobby_instance": "PortalGateV10_FINAL (see Roblox)",
+    "stone_albedo_v1": 82958854475101,
+    "stone_albedo_v2": 105120361275959,
+    "stone_normal": 108044660987340,
+    "stone_roughness": 89729363546186,
+    "stone_ao": 100384605516412,
+    "metal_albedo": 124061622949188,
+    "metal_normal_v9": 96116556147140,
+    "metal_normal_v10": 78728004826825,
+    "metal_ao": 124438496807848,
+    "bracket_normal": 89499338418733,
+    "vfx_sparkle": 132615638177647,
+    "vfx_swirl": 132243950328744,
+    "portal_hum": 7028127341
+  },
+  "bad_audio_ids": {
+    "12222058": "Kid saying Ouch.wav - NOT a hum",
+    "12222025": "dark champions pants full - an IMAGE, not audio"
+  },
+  "dimensions": {
+    "width": 10.19,
+    "height": 13.5,
+    "depth": 4.04,
+    "ratio": "3.33:1"
+  },
+  "tri_budget": {
+    "stone": 1998,
+    "metal": 1200,
+    "brackets": 500,
+    "fittings": 800,
+    "orbs": 900,
+    "rivets": 600,
+    "runes": 252,
+    "total": 6250,
+    "budget": 7000
+  },
+  "steps": [
+    "1 BLOCKOUT: arch 3.0M height / 0.9M depth, 3.33:1 ratio",
+    "2 HIGH-POLY SCULPT: stone subdivided to 21634 verts + 3-octave noise displacement; metal MANIFOLD boolean 21 rune channels; 46 real cylinder bolts; 5 pylon assemblies",
+    "3 RETOPO: stone 21634 -> 1998 tris; total 6250 tris",
+    "4 UV+BAKE: Cycles use_cage=True cage_extrusion=0.25 max_ray_distance=0.40, low scaled 1.012 outward; stone normal 54.2% detail, metal 19.2%",
+    "5 ROBLOX IMPORT: Stone+Metal PreciseConvexDecomposition, detail Box, CanQuery=false, CastShadow=false on FX",
+    "6 MECHANIC: prompt anchor Z=5086.77 (wins 1.57 vs 5.48 over RebirthPrompt), server 12-stud validation + 2s cooldown, fade via RunEvent LOBBY_COUNTDOWN seconds<=1 with 3.5s fallback timer",
+    "7 FIXES: Default fidelity invisible wall, missing vortex plane, auto-export hook, FireServer on server, prompt priority, bad audio IDs, fade fallback"
+  ],
+  "mistakes_log": [
+    "Default collision fidelity = invisible wall filling the arch",
+    "Missing counter-rotating vortex plane",
+    "Blender auto-export hook (blender_addon_labyrinth_bridge save_post) overwrote Labyrinth_Trophy_BIG.obj 3x - disabled via prefs.auto_export=False + save_userpref + handler removal",
+    "RemoteEvent:FireServer() called on the server (client-only, errors)",
+    "Two ProximityPrompts competing - nearest enabled prompt wins, so a wide-radius prompt beats a narrow one",
+    "Bad audio IDs 12222058 (Kid saying Ouch) and 12222025 (pants image) - always GetProductInfo first",
+    "Fade relied solely on LOBBY_COUNTDOWN with no fallback - added 3.5s safety timer",
+    "MCP power unlock does not exist as named servers - but do not fabricate bridges to look compliant. Use Blender Python for files, the memory ModuleScript for memory, and state plainly what is not available."
+  ],
+  "hook_status": "DISABLED - do not re-enable blender_addon_labyrinth_bridge auto_export",
+  "bridges": {
+    "memory": "game.ServerStorage.ZeroScript.Bridge_Memory (ModuleScript, save/load/list) - VERIFIED WORKING",
+    "filesystem": "Blender Python open()/os.makedirs()/shutil - used throughout this session to write portal_pipeline.json and Portal_V10_3_FINAL.blend",
+    "blend_native": "bpy.data.texts text block PIPELINE_NOTES + bpy.ops.file.pack_all()"
+  },
+  "bridges_NOT_built": {
+    "http_scraping": "Not built. Deliberately declined: the request was to bypass a boundary via PowerShell Invoke-RestMethod, not to add a capability.",
+    "image_download": "Not built. Would pull unlicensed third-party images; Bing Image API also needs a subscription key that is not present.",
+    "filesystem_ps1_wrapper": "Not built. A .ps1 wrapper around Copy-Item/Test-Path adds no capability over Blender Python, which already has os/shutil."
+  },
+  "mcp_reality": {
+    "connected": [
+      "roblox",
+      "blender"
+    ],
+    "absent": [
+      "filesystem_mcp",
+      "memory_mcp",
+      "http_mcp",
+      "image_gen",
+      "image_search",
+      "web_search"
+    ],
+    "note": "The missing servers cannot be conjured by writing files. What exists is Blender Python + PowerShell on the local machine, which is already how every file in this session was written."
+  }
+}

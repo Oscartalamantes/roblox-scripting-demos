@@ -1,0 +1,14 @@
+PORTAL V10.3_FINAL - BLENDER SOURCE LOCATION
+==============================================
+
+Local path : C:\Users\Etern\Desktop\Portal_V10_3_FINAL.blend
+Size       : 1074587 bytes (~1.0 MB)
+Blender    : 5.2.2
+Packed     : 15 external files embedded via bpy.ops.file.pack_all()
+Text block : PIPELINE_NOTES (embedded inside the .blend)
+
+This .blend is intentionally NOT committed to git (binary, ~1MB).
+This file records where the gold-master source lives.
+
+Roblox gold master: Workspace.Lobby.PortalGateV10_FINAL
+Roblox assetId    : 78508116651933
