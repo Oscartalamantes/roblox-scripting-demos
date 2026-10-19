@@ -1,0 +1,1 @@
+Logo in /mnt/data/OscarAI_logo_cutout.png - save from chat - transparent RGBA 1920x1280
