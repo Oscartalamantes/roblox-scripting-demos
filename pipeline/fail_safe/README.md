@@ -33,3 +33,11 @@ Built: 2026-10-19 14:08
 - Modeler Team = Blender PBR
 - Builder/World + LiveOps/Growth
 - Each team member has own team, learning from mistakes, WHY is key
+
+
+## 2026-10-19 14:12 - Compliance PERM + Hire Me
+- User operated within terms/policy, automated under watch only, AI helped understand + streamline - brain not bot
+- DeepSeek web rate limit 5/sec + hidden per-domain + 3-6 regenerate cap causes "messages too frequent" + "server busy" even when compliant
+- Solution: Groq API secure_key + fail-safe 5/5 layers - never loses data
+- EXPERT DEV FOR HIRE: team-of-teams architect, fail-safe pipelines, systematic debugging WHY-first, MISTAKES LOG learning
+- Built: auto-refresh dump if >12h stale, git clean 5 layers, soul versioning, 20 history
