@@ -1,0 +1,25 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6a5af9"/>
+      <stop offset="100%" stop-color="#00d4ff"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer O -->
+  <circle cx="512" cy="420" r="300" fill="none" stroke="url(#g)" stroke-width="28"/>
+  <!-- Inner C for brain circuit -->
+  <path d="M 350 420 A 162 162 0 1 0 674 420" fill="none" stroke="url(#g)" stroke-width="22" stroke-linecap="round"/>
+  <path d="M 360 520 A 152 152 0 1 1 664 520" fill="none" stroke="url(#g)" stroke-width="18" stroke-linecap="round" opacity="0.9"/>
+  <!-- Circuit dots -->
+  <circle cx="250" cy="320" r="10" fill="#6a5af9" opacity="0.8"/>
+  <circle cx="320" cy="260" r="8" fill="#6a5af9" opacity="0.7"/>
+  <circle cx="700" cy="260" r="8" fill="#00d4ff" opacity="0.7"/>
+  <circle cx="774" cy="320" r="10" fill="#00d4ff" opacity="0.8"/>
+  <circle cx="790" cy="500" r="9" fill="#00d4ff" opacity="0.8"/>
+  <circle cx="700" cy="640" r="8" fill="#00d4ff" opacity="0.7"/>
+  <circle cx="320" cy="640" r="8" fill="#6a5af9" opacity="0.7"/>
+  <circle cx="234" cy="500" r="9" fill="#6a5af9" opacity="0.8"/>
+  <!-- Text -->
+  <text x="512" y="860" font-family="Segoe UI, Arial" font-size="110" font-weight="700" fill="url(#g)" text-anchor="middle">OscarAI</text>
+  <text x="512" y="930" font-family="Segoe UI, Arial" font-size="42" fill="url(#g)" text-anchor="middle" opacity="0.9">Official App</text>
+</svg>
