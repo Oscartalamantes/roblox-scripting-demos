@@ -3,3 +3,29 @@ auto_sync_git.py
 start_both.bat
 __pycache__/
 *.pyc
+
+
+# Venvs - don't push these!
+oi-env/
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ipynb_checkpoints/
+.ai_control/
+Downloads/
+
+# Rust
+target/
+Cargo.lock
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Blender
+*.blend1
