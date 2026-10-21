@@ -1,7 +1,7 @@
-# Blender 5.2.2 LTS MTL File: 'Portal_V9_Final.blend'
+# Blender 5.2.2 LTS MTL File: 'None'
 # www.blender.org
 
-newmtl M_Copper
+newmtl M_Copper.004
 Ns 384.399994
 Ka 1.000000 1.000000 1.000000
 Kd 0.620000 0.300000 0.140000
@@ -11,7 +11,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl M_Core
+newmtl M_Core.004
 Ns 810.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.550000 0.200000 0.920000
@@ -21,7 +21,7 @@ Ni 1.500000
 d 1.000000
 illum 2
 
-newmtl M_Metal
+newmtl M_Metal.008
 Ns 462.399994
 Ka 0.900000 0.900000 0.900000
 Kd 0.040000 0.040000 0.050000
@@ -31,7 +31,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl M_Metal.003
+newmtl M_Metal.009
 Ns 462.399994
 Ka 0.900000 0.900000 0.900000
 Kd 0.040000 0.040000 0.050000
@@ -41,7 +41,7 @@ Ni 1.500000
 d 1.000000
 illum 3
 
-newmtl M_Moss
+newmtl M_Moss.004
 Ns 2.500001
 Ka 1.000000 1.000000 1.000000
 Kd 0.100000 0.220000 0.080000
@@ -51,7 +51,7 @@ Ni 1.500000
 d 1.000000
 illum 2
 
-newmtl M_Rune
+newmtl M_Rune.004
 Ns 640.000000
 Ka 1.000000 1.000000 1.000000
 Kd 0.150000 0.900000 1.000000
@@ -61,7 +61,7 @@ Ni 1.500000
 d 1.000000
 illum 2
 
-newmtl M_Stone.003
+newmtl M_Stone.005
 Ns 6.399997
 Ka 1.000000 1.000000 1.000000
 Kd 0.170000 0.150000 0.120000
