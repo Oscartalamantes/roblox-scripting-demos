@@ -8,12 +8,23 @@ except:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pyautogui"])
     import pyautogui
 pyautogui.FAILSAFE = False
-CMD_FILE = Path.home() / "Downloads" / "ai_control_command.txt"
+
 REPO = Path("C:/Users/Etern/Documents/roblox-scripting-demos")
+CMD_FILE = Path.home() / "Downloads" / "ai_control_command.txt"
+LIVE_REQ = REPO / "LIVE_REQUEST.txt"
+
 def execute(cmd_text):
-    c = cmd_text.lower()
-    print(f"AI: {cmd_text}")
-    if "portal" in c:
+    print(f"=== REQUEST FROM CHAT: {cmd_text} ===")
+    LIVE_REQ.write_text(f"{time.strftime('%H:%M:%S')} - {cmd_text}", encoding='utf-8')
+    
+    # Trigger Blender auto-import via file, not mouse click - more reliable
+    for p in [REPO / ".blender_trigger", Path.home() / "Downloads" / ".blender_trigger"]:
+        try:
+            p.write_text(str(time.time()))
+        except: pass
+    
+    # Also rebuild OBJ immediately
+    if "portal" in cmd_text.lower():
         import math
         verts=[]; faces=[]
         def torus(R,r,sm=28,sn=14):
@@ -35,22 +46,14 @@ def execute(cmd_text):
 ")
                 for fc in faces: f.write(f"f {fc[0]+1} {fc[1]+1} {fc[2]+1} {fc[3]+1}
 ")
-        (REPO / ".blender_trigger").write_text(str(time.time()))
-        subprocess.run("git add assets/trophy/Labyrinth_Trophy_BIG.obj Labyrinth_Portal.obj .gitignore", shell=True, cwd=REPO)
-        subprocess.run('git commit -m "5-ring colorful portal"', shell=True, cwd=REPO)
-        subprocess.run("git push", shell=True, cwd=REPO)
-        print("5-ring portal pushed")
-        time.sleep(1.5)
-        try:
-            pyautogui.click(x=700, y=250)
-            print("Auto-clicked Import from Repo")
-        except: pass
-    if "import" in c:
-        try:
-            pyautogui.click(x=700, y=250)
-            print("Clicked Import")
-        except: pass
-print(f"AI CONTROL ACTIVE - {CMD_FILE}")
+        print(f"Portal rebuilt for request: {cmd_text}")
+        (REPO / "LIVE_UPDATE.txt").write_text(f"LIVE {cmd_text} at {time.strftime('%H:%M:%S')} - {len(verts)} verts", encoding='utf-8')
+
+print(f"=== AUTO PIPELINE ACTIVE ===")
+print(f"Watching chat: {CMD_FILE}")
+print("You type request -> I build -> Blender auto-imports LIVE - no old version")
+print("Just see request and change - backend handled")
+
 last=0
 while True:
     try:
@@ -64,4 +67,4 @@ while True:
                     execute(t)
     except Exception as e:
         print(e)
-    time.sleep(0.5)
+    time.sleep(0.3)
